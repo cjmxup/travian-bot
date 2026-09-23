@@ -317,9 +317,13 @@
           <span class="lab">已有存檔</span>
           <select id="sessionSelect"><option value="">— 尚無存檔 —</option></select>
         </label>
+        <div style="margin-bottom:12px;">
+          <span class="lab" style="display:block; margin-bottom:5px;">所有存檔一覽(幫你確認哪個資料最多)</span>
+          <div class="snap-list" id="allSessionsList"><div class="empty-note">尚無存檔</div></div>
+        </div>
         <label class="field">
           <span class="lab">伺服器網址(用於地圖連結,例如 ts3.x1.asia.travian.com)</span>
-          <input type="text" id="serverUrlInput" placeholder="ts3.x1.asia.travian.com">
+          <input type="text" id="serverUrlInput" placeholder="ts3.x1.asia.travian.com" value="ts3.x1.asia.travian.com">
           <span class="empty-note" id="serverUrlSaved"></span>
         </label>
         <div class="btn-row">
@@ -503,6 +507,7 @@
   var el = {
     sessionInput: document.getElementById("sessionInput"),
     sessionSelect: document.getElementById("sessionSelect"),
+    allSessionsList: document.getElementById("allSessionsList"),
     serverUrlInput: document.getElementById("serverUrlInput"),
     serverUrlSaved: document.getElementById("serverUrlSaved"),
     deleteSessionBtn: document.getElementById("deleteSessionBtn"),
@@ -631,11 +636,32 @@
     if (state.currentSession && names.indexOf(state.currentSession) !== -1) {
       el.sessionSelect.value = state.currentSession;
     }
+    refreshAllSessionsList();
+  }
+
+  function refreshAllSessionsList() {
+    var names = Object.keys(state.sessions).sort();
+    if (names.length === 0) {
+      el.allSessionsList.innerHTML = '<div class="empty-note">尚無存檔</div>';
+      return;
+    }
+    el.allSessionsList.innerHTML = names.map(function (n) {
+      var s = state.sessions[n];
+      var snapCount = (s.snapshots || []).length;
+      var villageCount = Object.keys(s.villages || {}).length;
+      var lastTs = snapCount ? s.snapshots[snapCount - 1].ts : null;
+      var lastText = lastTs ? new Date(lastTs).toLocaleString() : "—";
+      var isCurrent = n === state.currentSession;
+      return '<div class="snap-item"' + (isCurrent ? ' style="border-color:var(--gold-dim);"' : "") + '>' +
+        '<span class="t">' + escHtml(n) + (isCurrent ? "(目前)" : "") + '</span>' +
+        '<span>快照 ' + snapCount + ' 次 · ' + villageCount + ' 村 · ' + lastText + '</span>' +
+        "</div>";
+    }).join("");
   }
 
   function getSession(name) {
     if (!state.sessions[name]) {
-      state.sessions[name] = { villages: {}, snapshots: [], home: { x: "", y: "" }, savedHomes: [], serverUrl: "" };
+      state.sessions[name] = { villages: {}, snapshots: [], home: { x: "", y: "" }, savedHomes: [], serverUrl: "ts3.x1.asia.travian.com" };
     }
     var s = state.sessions[name];
     if (!s.home) s.home = { x: "", y: "" };
@@ -1058,6 +1084,7 @@
       el.sessionInput.value = state.currentSession;
       loadHomeInputs();
       refreshSnapList();
+      refreshAllSessionsList();
       computeAndRender();
     }
   });
@@ -1089,6 +1116,7 @@
       saveAll(state.sessions);
       state.currentSession = name;
       refreshSnapList();
+      refreshAllSessionsList();
       computeAndRender();
       showToast("快照歷史已清空");
     });
