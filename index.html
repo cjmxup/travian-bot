@@ -247,6 +247,12 @@
   .map-link { color: var(--gold); text-decoration: none; border-bottom: 1px dotted var(--gold-dim); }
   .map-link:hover { color: var(--text); }
 
+  .note-input {
+    width: 260px; font-size: 11.5px; padding: 4px 6px;
+    background: transparent; border: 1px solid var(--border-soft);
+  }
+  .note-input:focus { background: var(--bg-panel-2); border-color: var(--gold-dim); outline: none; }
+
   .saved-home-item {
     display: flex; justify-content: space-between; align-items: center; gap: 8px;
     font-size: 11.5px; color: var(--text-dim);
@@ -436,10 +442,11 @@
               <th data-key="recentTrendDelta">近期趨勢</th>
               <th class="no-sort">地圖</th>
               <th class="no-sort">偵查</th>
+              <th data-key="note">備註</th>
             </tr>
           </thead>
           <tbody id="resultBody">
-            <tr><td colspan="12"><div class="placeholder">貼上第一份 map.sql 資料開始分析</div></td></tr>
+            <tr><td colspan="13"><div class="placeholder">貼上第一份 map.sql 資料開始分析</div></td></tr>
           </tbody>
         </table>
       </div>
@@ -864,7 +871,7 @@
           tribe: TRIBE_NAMES[rec.tribe] || ("#" + rec.tribe),
           pop: s.latest, score: s.score, trendLabel: s.trendLabel, trendText: s.trendText, trendDelta: s.trendDelta,
           recentTrendLabel: s.recentTrendLabel, recentTrendText: s.recentTrendText, recentTrendDelta: s.recentTrendDelta,
-          distance: dist, mapUrl: mapUrl,
+          distance: dist, mapUrl: mapUrl, note: rec.note || "",
           scoutStatus: rec.scoutStatus !== undefined ? rec.scoutStatus : (rec.scouted ? 2 : 0)
         });
       });
@@ -899,7 +906,7 @@
     rows.sort(compareRows);
 
     if (rows.length === 0) {
-      el.resultBody.innerHTML = '<tr><td colspan="12"><div class="placeholder">' +
+      el.resultBody.innerHTML = '<tr><td colspan="13"><div class="placeholder">' +
         (state.currentSession ? "沒有符合目前條件的村莊" : "貼上第一份 map.sql 資料開始分析") + '</div></td></tr>';
       return;
     }
@@ -919,6 +926,7 @@
         '<td class="' + r.recentTrendLabel + '">' + r.recentTrendText + "</td>" +
         "<td>" + (r.mapUrl ? '<a class="map-link" href="' + escHtml(r.mapUrl) + '" target="_blank" rel="noopener noreferrer">開啟</a>' : '<span class="empty-note" style="padding:0;">未設定網址</span>') + "</td>" +
         '<td><button class="scout-btn ' + SCOUT_CLASSES[r.scoutStatus] + '" data-vid="' + escHtml(r.vid) + '">' + SCOUT_LABELS[r.scoutStatus] + "</button></td>" +
+        '<td><input type="text" class="note-input" data-vid="' + escHtml(r.vid) + '" value="' + escHtml(r.note) + '" placeholder="備註…"></td>' +
         "</tr>";
     }).join("");
   }
@@ -981,10 +989,10 @@
 
   function exportCsv() {
     if (!state.currentResults.length) { showToast("沒有資料可匯出"); return; }
-    var header = ["x", "y", "distance", "player", "alliance", "tribe", "population", "total_trend", "recent_trend", "score"];
+    var header = ["x", "y", "distance", "player", "alliance", "tribe", "population", "total_trend", "recent_trend", "score", "note"];
     var lines = [header.join(",")];
     state.currentResults.forEach(function (r) {
-      lines.push([r.x, r.y, r.distance === null ? "" : r.distance.toFixed(1), csvEsc(r.pname), csvEsc(r.aname), csvEsc(r.tribe), r.pop, csvEsc(r.trendText), csvEsc(r.recentTrendText), r.score].join(","));
+      lines.push([r.x, r.y, r.distance === null ? "" : r.distance.toFixed(1), csvEsc(r.pname), csvEsc(r.aname), csvEsc(r.tribe), r.pop, csvEsc(r.trendText), csvEsc(r.recentTrendText), r.score, csvEsc(r.note)].join(","));
     });
     var blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
     var url = URL.createObjectURL(blob);
@@ -1148,6 +1156,27 @@
     if (row) row.scoutStatus = rec.scoutStatus;
     btn.className = "scout-btn " + SCOUT_CLASSES[rec.scoutStatus];
     btn.textContent = SCOUT_LABELS[rec.scoutStatus];
+  });
+
+  el.resultBody.addEventListener("focusout", function (e) {
+    var input = e.target.closest(".note-input");
+    if (!input || !state.currentSession) return;
+    var sess = state.sessions[state.currentSession];
+    if (!sess) return;
+    var vid = input.getAttribute("data-vid");
+    var rec = sess.villages[vid];
+    if (!rec) return;
+    var val = input.value;
+    if ((rec.note || "") === val) return;
+    rec.note = val;
+    saveAll(state.sessions);
+    var row = state.currentResults.filter(function (r) { return r.vid === vid; })[0];
+    if (row) row.note = val;
+  });
+  el.resultBody.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && e.target.classList && e.target.classList.contains("note-input")) {
+      e.target.blur();
+    }
   });
 
   function defaultDirFor(key) {
